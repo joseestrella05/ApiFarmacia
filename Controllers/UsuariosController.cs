@@ -1,0 +1,163 @@
+﻿using ApiFarmacia.Dto;
+using ApiFarmacia.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+
+namespace ApiFarmacia.Controllers;
+
+[Route("api/[controller]")]
+[ApiController]
+public class UsuariosController : ControllerBase
+{
+    private readonly IUsuarioService _usuarioService;
+
+    public UsuariosController(IUsuarioService usuarioService)
+    {
+        _usuarioService = usuarioService;
+    }
+
+    /// <summary>
+    /// Registrar un nuevo usuario
+    /// </summary>
+    [HttpPost("registro")]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Registrar([FromBody] RegistroUsuarioDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var (exito, mensaje, data) = await _usuarioService.RegistrarAsync(dto);
+
+        if (!exito)
+            return BadRequest(new { mensaje });
+
+        return CreatedAtAction(nameof(ObtenerPerfil), null, new { mensaje, data });
+    }
+
+    /// <summary>
+    /// Iniciar sesión
+    /// </summary>
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Login([FromBody] LoginDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var (exito, mensaje, data) = await _usuarioService.LoginAsync(dto);
+
+        if (!exito)
+            return Unauthorized(new { mensaje });
+
+        return Ok(new { mensaje, data });
+    }
+
+    /// <summary>
+    /// Obtener perfil del usuario autenticado
+    /// </summary>
+    [Authorize]
+    [HttpGet("perfil")]
+    [ProducesResponseType(typeof(UsuarioReadDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObtenerPerfil()
+    {
+        var usuarioId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var (exito, mensaje, data) = await _usuarioService.ObtenerPerfilAsync(usuarioId);
+
+        if (!exito)
+            return NotFound(new { mensaje });
+
+        return Ok(new { mensaje, data });
+    }
+
+    /// <summary>
+    /// Actualizar perfil del usuario autenticado
+    /// </summary>
+    [Authorize]
+    [HttpPut("perfil")]
+    [ProducesResponseType(typeof(UsuarioReadDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ActualizarPerfil([FromBody] ActualizarUsuarioDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var usuarioId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var (exito, mensaje, data) = await _usuarioService.ActualizarPerfilAsync(usuarioId, dto);
+
+        if (!exito)
+            return NotFound(new { mensaje });
+
+        return Ok(new { mensaje, data });
+    }
+
+    /// <summary>
+    /// Cambiar contraseña del usuario autenticado
+    /// </summary>
+    [Authorize]
+    [HttpPost("cambiar-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CambiarPassword([FromBody] CambiarPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var usuarioId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var (exito, mensaje) = await _usuarioService.CambiarPasswordAsync(usuarioId, dto);
+
+        if (!exito)
+            return BadRequest(new { mensaje });
+
+        return Ok(new { mensaje });
+    }
+
+    /// <summary>
+    /// Renovar token de acceso usando refresh token
+    /// </summary>
+    [HttpPost("refresh-token")]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var (exito, mensaje, data) = await _usuarioService.RefreshTokenAsync(dto.RefreshToken);
+
+        if (!exito)
+            return Unauthorized(new { mensaje });
+
+        return Ok(new { mensaje, data });
+    }
+
+    /// <summary>
+    /// Obtener información del usuario autenticado (endpoint simple)
+    /// </summary>
+    [Authorize]
+    [HttpGet("me")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public IActionResult GetCurrentUser()
+    {
+        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var email = User.FindFirstValue(ClaimTypes.Email);
+        var nombre = User.FindFirstValue(ClaimTypes.Name);
+        var rol = User.FindFirstValue(ClaimTypes.Role);
+
+        return Ok(new
+        {
+            usuarioId,
+            email,
+            nombre,
+            rol
+        });
+    }
+}
