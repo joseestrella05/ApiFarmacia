@@ -19,9 +19,15 @@ builder.Services.AddDbContext<Context>(options =>
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret no configurado");
+var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? jwtSettings["Secret"]
+    ?? throw new InvalidOperationException("JWT Secret no configurado");
+
+if (secretKey.Length < 32)
+    throw new InvalidOperationException("JWT Secret debe tener al menos 32 caracteres");
 
 builder.Services.AddAuthentication(options =>
 {
@@ -30,7 +36,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = true; // Solo HTTPS en producción
+    options.RequireHttpsMetadata = builder.Environment.IsProduction();
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -47,10 +53,8 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// ==================== RATE LIMITING ====================
 builder.Services.AddRateLimiter(options =>
 {
-    // Límite general
     options.AddFixedWindowLimiter("general", opt =>
     {
         opt.PermitLimit = 100;
@@ -59,7 +63,6 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueLimit = 5;
     });
 
-    // Límite más estricto para login (prevenir ataques de fuerza bruta)
     options.AddFixedWindowLimiter("auth", opt =>
     {
         opt.PermitLimit = 10;
@@ -69,35 +72,45 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
-// ==================== CORS ====================
+var allowedOrigins = builder.Configuration.GetSection("AppSettings:FrontendUrl").Value;
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.AllowAnyOrigin() // En producción, especificar dominios permitidos
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+        else
+        {
+            policy.WithOrigins(allowedOrigins!)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
     });
 });
 
-// ==================== CONTROLADORES Y MAPEO ====================
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
-// AutoMapper
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile), typeof(UsuarioMapperProfile));
 
-// ==================== SWAGGER CON JWT ====================
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "API Farmacia",
         Version = "v1",
-        Description = "API REST para gestión de farmacia con autenticación JWT"
+        Description = "API REST para gestión de farmacia con autenticación JWT y confirmación de email",
+        Contact = new OpenApiContact
+        {
+            Name = "Soporte",
+            Email = "soporte@farmacia.com"
+        }
     });
 
-    // Configurar JWT en Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "Ingrese el token JWT con el prefijo Bearer. Ejemplo: 'Bearer {token}'",
@@ -124,8 +137,10 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-var app = builder.Build();
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<Context>();
 
+var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
@@ -133,7 +148,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "API Farmacia v1");
+        c.RoutePrefix = "swagger";
     });
+}
+else
+{
+    app.UseExceptionHandler("/error");
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
@@ -141,6 +162,9 @@ app.UseCors("AllowFrontend");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapHealthChecks("/health");
+
 app.MapControllers();
 
 app.Run();
