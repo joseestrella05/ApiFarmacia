@@ -10,5 +10,9 @@ public interface IUsuarioService
     Task<(bool Exito, string Mensaje, UsuarioReadDto? Data)> ActualizarPerfilAsync(int usuarioId, ActualizarUsuarioDto dto);
     Task<(bool Exito, string Mensaje)> CambiarPasswordAsync(int usuarioId, CambiarPasswordDto dto);
     Task<(bool Exito, string Mensaje, AuthResponseDto? Data)> RefreshTokenAsync(string refreshToken);
+    Task<(bool Exito, string Mensaje)> ConfirmarEmailAsync(string token);
+    Task<(bool Exito, string Mensaje)> ReenviarConfirmacionEmailAsync(string email);
+    Task<(bool Exito, string Mensaje)> SolicitarRecuperacionPasswordAsync(string email);
+    Task<(bool Exito, string Mensaje)> ResetPasswordAsync(string token, string nuevaPassword);
 }
 
