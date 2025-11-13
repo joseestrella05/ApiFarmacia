@@ -97,6 +97,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile), typeof(UsuarioMapperProfile));
 
+// Swagger habilitado SIEMPRE (DEV y PROD)
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
@@ -142,20 +143,27 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+using (var scope = app.Services.CreateScope())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
+    var dbContext = scope.ServiceProvider.GetRequiredService<Context>();
+    if (dbContext.Database.IsRelational())
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "API Farmacia v1");
-        c.RoutePrefix = "swagger";
-    });
+        dbContext.Database.Migrate();
+    }
 }
-else
+
+if (app.Environment.IsProduction())
 {
     app.UseExceptionHandler("/error");
     app.UseHsts();
 }
+
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "API Farmacia v1");
+    c.RoutePrefix = "swagger"; 
+});
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
@@ -164,7 +172,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
-
 app.MapControllers();
 
 app.Run();
