@@ -2,6 +2,7 @@
 using ApiFarmacia.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 
 namespace ApiFarmacia.Controllers;
@@ -53,6 +54,73 @@ public class UsuariosController : ControllerBase
             return Unauthorized(new { mensaje });
 
         return Ok(new { mensaje, data });
+    }
+
+    /// <summary>
+    /// Confirmar email con token
+    /// </summary>
+    [HttpGet("confirmar-email")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConfirmarEmail([FromQuery] string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return BadRequest(new { mensaje = "Token requerido" });
+
+        var (exito, mensaje) = await _usuarioService.ConfirmarEmailAsync(token);
+
+        if (!exito)
+            return BadRequest(new { mensaje });
+
+        return Ok(new { mensaje });
+    }
+
+    /// <summary>
+    /// Reenviar email de confirmación
+    /// </summary>
+    [HttpPost("reenviar-confirmacion")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReenviarConfirmacion([FromBody] ReenviarEmailDto dto)
+    {
+        var (exito, mensaje) = await _usuarioService.ReenviarConfirmacionEmailAsync(dto.Email);
+
+        if (!exito)
+            return BadRequest(new { mensaje });
+
+        return Ok(new { mensaje });
+    }
+
+    /// <summary>
+    /// Solicitar recuperación de contraseña
+    /// </summary>
+    [HttpPost("solicitar-recuperacion-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> SolicitarRecuperacionPassword([FromBody] SolicitarRecuperacionDto dto)
+    {
+        var (exito, mensaje) = await _usuarioService.SolicitarRecuperacionPasswordAsync(dto.Email);
+
+        // Siempre retornar 200 por seguridad (no revelar si el email existe)
+        return Ok(new { mensaje });
+    }
+
+    /// <summary>
+    /// Restablecer contraseña con token
+    /// </summary>
+    [HttpPost("reset-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var (exito, mensaje) = await _usuarioService.ResetPasswordAsync(dto.Token, dto.NuevaPassword);
+
+        if (!exito)
+            return BadRequest(new { mensaje });
+
+        return Ok(new { mensaje });
     }
 
     /// <summary>
@@ -139,7 +207,7 @@ public class UsuariosController : ControllerBase
     }
 
     /// <summary>
-    /// Obtener información del usuario autenticado (endpoint simple)
+    /// Obtener información del usuario autenticado
     /// </summary>
     [Authorize]
     [HttpGet("me")]
@@ -160,4 +228,30 @@ public class UsuariosController : ControllerBase
             rol
         });
     }
+}
+
+public class ReenviarEmailDto
+{
+    [Required(ErrorMessage = "El email es obligatorio")]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+}
+
+public class SolicitarRecuperacionDto
+{
+    [Required(ErrorMessage = "El email es obligatorio")]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ResetPasswordDto
+{
+    [Required(ErrorMessage = "El token es obligatorio")]
+    public string Token { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "La nueva contraseña es obligatoria")]
+    [StringLength(100, MinimumLength = 8)]
+    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$",
+        ErrorMessage = "La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número")]
+    public string NuevaPassword { get; set; } = string.Empty;
 }

@@ -10,20 +10,20 @@ public class Usuario
     [Required(ErrorMessage = "El email es obligatorio")]
     [EmailAddress(ErrorMessage = "Email inválido")]
     [StringLength(256)]
-    public string? Email { get; set; }
+    public string Email { get; set; } = string.Empty;
 
     [Required]
-    public string? PasswordHash { get; set; } 
+    public string PasswordHash { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El nombre es obligatorio")]
     [StringLength(100)]
     [RegularExpression(@"^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]{2,100}$", ErrorMessage = "Solo letras y espacios")]
-    public string? Nombre { get; set; } 
+    public string Nombre { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El apellido es obligatorio")]
     [StringLength(100)]
     [RegularExpression(@"^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]{2,100}$", ErrorMessage = "Solo letras y espacios")]
-    public string? Apellido { get; set; } 
+    public string Apellido { get; set; } = string.Empty;
 
     [Phone(ErrorMessage = "Teléfono inválido")]
     [StringLength(20)]
@@ -47,7 +47,15 @@ public class Usuario
 
     public DateTime? BloqueoHasta { get; set; }
 
+    // Refresh Token
     public string? RefreshToken { get; set; }
-
     public DateTime? RefreshTokenExpiracion { get; set; }
+
+    // Token de Confirmación de Email
+    public string? EmailConfirmacionToken { get; set; }
+    public DateTime? EmailConfirmacionTokenExpiracion { get; set; }
+
+    // Token de Recuperación de Contraseña
+    public string? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetTokenExpiracion { get; set; }
 }

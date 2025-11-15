@@ -22,7 +22,6 @@ public class Context(DbContextOptions<Context> options) : DbContext(options)
         modelBuilder.Entity<Usuario>(entity =>
         {
             entity.HasKey(e => e.UsuarioId);
-
             entity.HasIndex(e => e.Email).IsUnique();
 
             entity.Property(e => e.Email)
@@ -59,6 +58,10 @@ public class Context(DbContextOptions<Context> options) : DbContext(options)
 
             entity.Property(e => e.IntentosAccesoFallidos)
                 .HasDefaultValue(0);
+
+            entity.HasIndex(e => e.EmailConfirmacionToken);
+            entity.HasIndex(e => e.PasswordResetToken);
+            entity.HasIndex(e => e.RefreshToken);
         });
     }
 
